@@ -7,17 +7,39 @@ sys.path.append("DevSrf")
 ##
 import DevSrf
 
+"""
 def splitMesh(ds: DevSrf.DevSrf, ind: int):
     1
 
 def extractArea(ds: DevSrf.DevSrf):
     1
+"""
 
 ##標準偏差により評価
 ##各ベクトルのとる範囲が-1から1のため十分小さくなれば
-def getSD(img: np.array, area:np.array):
-    img_l = img #必要なサイズ分スライスするようにしておく
-    return np.std(img_l)
+def getSD(ds: DevSrf.DevSrf, img: np.array):
+    f = 0.0
+    dx = ds.MapWidth/ds.modelWidth
+    for i in range(ds.rulingNum + 1):
+        list = []
+        if i == 0:
+            for y in range(0,ds.MapHeight):
+                for x in range(0, max(ds.xl[0], ds.xr[0]) * dx):
+                    if(x <= y * (ds.xl[0] - ds.xr[0])/ ds.modelHeight + ds.xl[0] * dx):
+                        list.append(img[x][y])
+        elif i == ds.rulingNum:
+            for y in range(0,ds.MapHeight):
+                for x in range(min(ds.xl[0], ds.xr[0]) * dx, ds.MapWidth):
+                    if(x >= y * (ds.xl[0] - ds.xr[0])/ ds.modelHeight + ds.xl[0] * dx):
+                        list.append(img[x][y])
+        else:
+            for y in range(0,ds.MapHeight):
+                for x in range(min(ds.xl[i - 1], ds.xr[i - 1]) * dx, max(ds.xl[i], ds.xr[i]) * dx):
+                    if(y * (ds.xl[i - 1] - ds.xr[i - 1])/ ds.modelHeight + ds.xl[i - 1] * dx <= x and x <= y * (ds.xl[i] - ds.xr[i])/ ds.modelHeight + ds.xl[i] * dx):
+                        list.append(img[x][y])     
+        slicedImage = np.array(list)
+        f += np.std(slicedImage)
+    return f
 
 eps = 1e-3 #仮置き
 def Func_Der(ds: DevSrf.DevSrf,img:np.array):
@@ -27,49 +49,61 @@ def Func_Der(ds: DevSrf.DevSrf,img:np.array):
     for i in range(ds.rulingNum):
         f1, f2 = 0.0
         der_a.xl[i] += eps
-        area = extractArea(der_a)
-        f1 = getSD(img,area)
+        f1 = getSD(der_a, img)
         der_a.xl[i] -= 2 * eps
-        area = extractArea(der_a)
-        f2 = getSD(img,area)
+        f2 = getSD(der_a, img)
+        der_a.xl[i] += eps
         f_der[i] = (f1 - f2) / (2 * eps)
-
+        
     for i in range(ds.rulingNum):
         f1, f2 = 0.0
         der_b.xr[i] += eps
-        area = extractArea(der_a)
-        f1 = getSD(img,area)
+        f1 = getSD(der_b, img)
         der_b.xr[i] -= 2 * eps
-        area = extractArea(der_a)
-        f2 = getSD(img,area)
+        f2 = getSD(der_b, img)
         f_der[i + ds.rulingNum] = (f1 - f2) / (2 * eps)
 
     return f_der
 
+"""
+f1 = f(x+h,y+h), f2 = f(x+h,y-h), f3 = f(x-h,y+h), f4 = f(x-h,y+h)
+df/dxdy = (f1 + f3 - f4 - f2)/h^2
+"""
+eps_list = [1e-3, -1e-3,]
+def diff(i:int, j:int, ds:DevSrf.DevSrf, img:np.array):
+    f = np.zeros(4)
+    der = ds
+    for n in range(2):
+        for m in range(2):
+            if(i < ds.rulingNum):
+                der.xl[i] += eps_list[n]
+                if(j < ds.rulingNum):
+                    der.xl[j] += eps_list[m]
+                else:
+                    der.xr[j] += eps_list[m]
+            else:
+                der.xr[i] += eps_list[n]
+                if(j < ds.rulingNum):
+                    der.xl[j] += eps_list[m]
+                else:
+                    der.xr[j] += eps_list[m]
+            f[2*m + n] = getSD(der,img)
+    return (f[0] - f[1] + f[2] - f[3])/(eps * eps)
+
 def Func_Hess(ds: DevSrf.DevSrf,img:np.array):
-    x = np.asarray(x)
-    H = np.diag(-400*x[:-1],1) - np.diag(400*x[:-1],-1)
-    diagonal = np.zeros_like(x)
-    diagonal[0] = 1200*x[0]**2-400*x[1]+2
-    diagonal[-1] = 200
-    diagonal[1:-1] = 202 + 1200*x[1:-1]**2 - 400*x[2:]
-    H = H + np.diag(diagonal)
+    f1, f2, f3, f4 = 0.0
+    der = ds
+    H = np.zeros((ds.rulingNum * 2, ds.rulingNum * 2, ))
+    for i in range(2 * ds.rulingNum):
+        for j in range(2 * ds.rulingNum):
+            H[i][j] = diff(i, j, ds, img)
+    return H
 
 #scipyによる最適化
 #https://scipy.github.io/devdocs/tutorial/optimize.html
 def optimization(ds: DevSrf.DevSrf,img:np.array):
-    f = 0.0
-    for i in range(ds.rulingNum):
-        area = extractArea(ds) #区切るエリアを設定
-        f += getSD(img, area) #目的関数
+    return getSD(ds, img)
 
-    return f
-'''
-手順
-1. 法線マップNを2つに分割(N_l, N_r) 分割位置の初期状態はNを二等分にできる場所
-2. N_l, N_rの各標準偏差の和が最小となるようにオリセンの位置調整
-3. N_l, N_rそれぞれの標準偏差の値の差が十分小さい場合は分割終了.それ以外はN_l, N_rそれぞれを新たなNとして1に戻る(先に分割するのはN_l, N_rのうち標準偏差が大きい方)
-'''
 th = 5 #閾値
 cnt = 0
 def setRuling(ds: DevSrf.DevSrf, img: np.array, area:np.array, i: int, root:bool):

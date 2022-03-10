@@ -38,6 +38,8 @@ def getSD(ds: DevSrf.DevSrf, img: np.array):
                     if(y * (ds.xl[i - 1] - ds.xr[i - 1])/ ds.modelHeight + ds.xl[i - 1] * dx <= x and x <= y * (ds.xl[i] - ds.xr[i])/ ds.modelHeight + ds.xl[i] * dx):
                         list.append(img[x][y])     
         slicedImage = np.array(list)
+        print(slicedImage.shape)
+        Vave = np.mean(slicedImage)
         f += np.std(slicedImage)
     return f
 
@@ -122,6 +124,7 @@ def setRuling(ds: DevSrf.DevSrf, img: np.array, area:np.array, i: int, root:bool
     #x = np.array() #最適化に使うパラメータ(今回はxl, xr)
     #res = minimize(optimization, x, method='trust-exact', jac=Func_Der, hess=Func_Hess, options={'gtol': 1e-8, 'disp': True})
 
+    getSD(ds,img)
     """
     SD_l, SD_r = optimization(ds, img, area)
     cnt += 1

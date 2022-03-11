@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 from scipy.optimize import minimize, Bounds
+from numpy import linalg as LA
 
 ##外部ファイルの読み込み
 sys.path.append("DevSrf")
@@ -15,32 +16,39 @@ def extractArea(ds: DevSrf.DevSrf):
     1
 """
 
-##標準偏差により評価
-##各ベクトルのとる範囲が-1から1のため十分小さくなれば
 def getSD(ds: DevSrf.DevSrf, img: np.array):
     f = 0.0
     dx = ds.MapWidth/ds.modelWidth
-    for i in range(ds.rulingNum + 1):
-        list = []
-        if i == 0:
-            for y in range(0,ds.MapHeight):
-                for x in range(0, max(ds.xl[0], ds.xr[0]) * dx):
-                    if(x <= y * (ds.xl[0] - ds.xr[0])/ ds.modelHeight + ds.xl[0] * dx):
-                        list.append(img[x][y])
+
+    for i in range(1):
+        slicedImage = np.empty((3,),dtype=float)
+
+        if i == 0:        
+            for y in range(0,ds.MapHeight):          
+                for x in range(0, round(y * (ds.xl[i] - ds.xr[i])/ ds.modelHeight + ds.xl[i] * dx)):
+                    if(0 <= x and x < ds.MapWidth):
+                        slicedImage = np.append(slicedImage,img[x][y],axis = 0)
         elif i == ds.rulingNum:
             for y in range(0,ds.MapHeight):
-                for x in range(min(ds.xl[0], ds.xr[0]) * dx, ds.MapWidth):
-                    if(x >= y * (ds.xl[0] - ds.xr[0])/ ds.modelHeight + ds.xl[0] * dx):
-                        list.append(img[x][y])
+                for x in range(round(y * (ds.xl[i - 1] - ds.xr[i - 1])/ ds.modelHeight + ds.xl[i - 1] * dx), ds.MapWidth):
+                    if(0 <= x and x < ds.MapWidth):
+                        slicedImage = np.append(slicedImage,img[x][y],axis = 0)
         else:
             for y in range(0,ds.MapHeight):
-                for x in range(min(ds.xl[i - 1], ds.xr[i - 1]) * dx, max(ds.xl[i], ds.xr[i]) * dx):
-                    if(y * (ds.xl[i - 1] - ds.xr[i - 1])/ ds.modelHeight + ds.xl[i - 1] * dx <= x and x <= y * (ds.xl[i] - ds.xr[i])/ ds.modelHeight + ds.xl[i] * dx):
-                        list.append(img[x][y])     
-        slicedImage = np.array(list)
-        print(slicedImage.shape)
-        Vave = np.mean(slicedImage)
-        f += np.std(slicedImage)
+                for x in range(round(y * (ds.xl[i - 1] - ds.xr[i - 1])/ ds.modelHeight + ds.xl[i - 1] * dx),
+                 round(y * (ds.xl[i] - ds.xr[i])/ ds.modelHeight + ds.xl[i] * dx)):
+                    if(0 < x and x < ds.MapWidth):
+                        slicedImage = np.append(slicedImage,img[x][y],axis = 0)  
+       
+        slicedImage = slicedImage.reshape([3,int(slicedImage.size/3)])
+        slicedImage = slicedImage.T          
+        slicedImage = np.delete(slicedImage,0,0)              
+        Vave = np.mean(slicedImage, axis = 0)
+        for n in range(slicedImage.shape[0]):
+            f += 1 - np.dot(slicedImage[n,:],Vave)
+            #print(1 - np.dot(slicedImage[n,:],Vave), "  ", Vave)
+       
+        print("f = ", f)
     return f
 
 eps = 1e-3 #仮置き

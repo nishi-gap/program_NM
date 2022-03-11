@@ -13,12 +13,13 @@ class DevSrf:
     #xr:np.array
 
     def __init__(self, rulingNum: int, modelWidth: int, modelHeight: int, 
-    foldAngle: float, MapWidth: int = 512,MapHeight:int = 256):
+    foldAngle: float, img:np.array):
         self.rulingNum = rulingNum
         self.modelWidth = modelWidth
         self.modelHeight = modelHeight     
         self.foldAngles = np.full((rulingNum,),foldAngle)
-        self.MapWidth = MapWidth
-        self.MapHeight = MapHeight
-        self.xl = np.zeros(rulingNum)
-        self.xr = np.zeros(rulingNum)
+        self.MapWidth = img.shape[0]
+        self.MapHeight = img.shape[1]
+        step = modelWidth/(rulingNum + 1) 
+        self.xl = np.linspace(step, modelWidth - step,rulingNum)
+        self.xr = np.linspace(step, modelWidth - step,rulingNum)

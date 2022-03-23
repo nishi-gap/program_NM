@@ -29,8 +29,9 @@ def readEXR(file: str):
 
     # openCVで使えるように並べ替え
     img = np.array([[r, g, b] for r, g, b in zip(red, green, blue)])
-
-    img = img.reshape(size[0], size[1], 3)
+    
+    img = img.reshape(size[1], size[0], 3)
+    img = img.transpose((1,0,2))
     nm = C2V(img, size[0], size[1]) #色ベクトルから単位法線ベクトル
     
     return nm

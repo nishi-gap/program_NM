@@ -1,121 +1,142 @@
 import numpy as np
-from scipy.optimize import minimize, Bounds
+from scipy.optimize import minimize, LinearConstraint
 
 from src.pylib import DevSrf
 
 ##標準偏差により評価
 ##各ベクトルのとる範囲が-1から1のため十分小さくなれば
-def getSD(x: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float):
+def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float):
     f = 0.0
-
     for i in range(ds.rulingNum + 1):
         slicedImage = np.empty((3,),dtype=float)
-
+        r = g = b = 0.0
+        cnt = 0
         if i == 0:                
-            for y in range(0, ds.MapHeight):
-                t =  round(y * (x[i] - x[i + ds.rulingNum])/ ds.modelHeight + x[i] * dx) 
-                print(x[i + ds.rulingNum])             
-                for x in range(0, round(y * (x[i] - x[i + ds.rulingNum])/ ds.modelHeight + x[i] * dx)):
+            for y in range(0, ds.MapHeight):            
+                for x in range(0, round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
                     if(0 <= x and x < ds.MapWidth):
-                        slicedImage = np.append(slicedImage,img[y][x],axis = 0)
+                        r += img[x][y][0]
+                        g += img[x][y][1]
+                        b += img[x][y][2]
+                        cnt += 1
+            r /= cnt
+            g /= cnt
+            b /= cnt
+            Vave = np.array([r,g,b])
+            for y in range(0, ds.MapHeight):            
+                for x in range(0, round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
+                    if(0 <= x and x < ds.MapWidth):
+                        f += 1 - np.dot(Vave, img[x][y])
         elif i == ds.rulingNum:
             for y in range(0, ds.MapHeight):
-                for x in range(round(y * (x[i - 1] - x[i + ds.rulingNum - 1])/ ds.modelHeight + x[i - 1] * dx), ds.MapWidth):
+                for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i - 1] * dx), ds.MapWidth):
                     if(0 <= x and x < ds.MapWidth):
-                        slicedImage = np.append(slicedImage,img[y][x],axis = 0)
+                        r += img[x][y][0]
+                        g += img[x][y][1]
+                        b += img[x][y][2]
+                        cnt += 1
+            r /= cnt
+            g /= cnt
+            b /= cnt
+            Vave = np.array([r,g,b])
+            for y in range(0, ds.MapHeight):
+                for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i - 1] * dx), ds.MapWidth):
+                    if(0 <= x and x < ds.MapWidth):
+                        f += 1 - np.dot(Vave, img[x][y])
         else:
             for y in range(0, ds.MapHeight):
-                for x in range(round(y * (x[i - 1] - x[i + ds.rulingNum - 1])/ ds.modelHeight + x[i + ds.rulingNum - 1] * dx),
-                 round(y * (x[i] - x[i + ds.rulingNum])/ ds.modelHeight + x[i] * dx)):
+                for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i + ds.rulingNum - 1] * dx),
+                 round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
                     if(0 < x and x < ds.MapWidth):
-                        slicedImage = np.append(slicedImage,img[y][x],axis = 0)  
-       
-        slicedImage = slicedImage.reshape([3,int(slicedImage.size/3)])
-        slicedImage = slicedImage.T          
-        slicedImage = np.delete(slicedImage,0,0)
-        #print("slicedImage size : ", slicedImage.shape)          
-        Vave = np.mean(slicedImage, axis = 0)
-        for n in range(slicedImage.shape[0]):
-            val = 1 - np.dot(slicedImage[n,:],Vave)
-            f += val
-            #print(1 - np.dot(slicedImage[n,:],Vave), "  ", Vave)
-       
-        print("f = ", f)
+                        r += img[x][y][0]
+                        g += img[x][y][1]
+                        b += img[x][y][2]
+                        cnt +=1 
+            r /= cnt
+            g /= cnt
+            b /= cnt
+            Vave = np.array([r,g,b])
+            for y in range(0, ds.MapHeight):
+                for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i + ds.rulingNum - 1] * dx),
+                 round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
+                    if(0 < x and x < ds.MapWidth):
+                        f += 1 - np.dot(Vave, img[x][y])
+    print("f",f)
     return f
 
-eps = 1e-3 #仮置き
-def Func_Der(ds: DevSrf.DevSrf,img:np.array):
-    f_der = np.zeros(ds.rulingNum * 2)
-    der_a, der_b = ds
-    
-    for i in range(ds.rulingNum):
-        f1, f2 = 0.0
-        der_a.xl[i] += eps
-        f1 = getSD(der_a, img)
-        der_a.xl[i] -= 2 * eps
-        f2 = getSD(der_a, img)
-        der_a.xl[i] += eps
-        f_der[i] = (f1 - f2) / (2 * eps)
-        
-    for i in range(ds.rulingNum):
-        f1, f2 = 0.0
-        der_b.xr[i] += eps
-        f1 = getSD(der_b, img)
-        der_b.xr[i] -= 2 * eps
-        f2 = getSD(der_b, img)
-        f_der[i + ds.rulingNum] = (f1 - f2) / (2 * eps)
+eps = 1e-2 #仮置き
+def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
+    f_der = np.zeros(p.size)
+    x = p
+    for i in range(p.size):
+        x[i] += eps
+        f1 = getSD(x,ds,img,dx)
+        x[i] -= 2*eps
+        f2 = getSD(x,ds,img,dx)
+        x[i] += eps
+        f_der[i] = (f1 - f2)/(2 * eps)
 
     return f_der
 
 """
-f1 = f(x+h,y+h), f2 = f(x+h,y-h), f3 = f(x-h,y+h), f4 = f(x-h,y+h)
+f1 = f(i+h,j+h), f2 = f(i+h,j-h), f3 = f(i-h,j+h), f4 = f(i-h,j+h)
 df/dxdy = (f1 + f3 - f4 - f2)/h^2
 """
-eps_list = [1e-3, -1e-3,]
-def diff(i:int, j:int, ds:DevSrf.DevSrf, img:np.array):
+eps_list = [eps, -eps,]
+def diff(i:int, j:int, p:np.ndarray, ds:DevSrf.DevSrf, img:np.array, dx:float):
     f = np.zeros(4)
-    der = ds
     for n in range(2):
         for m in range(2):
-            if(i < ds.rulingNum):
-                der.xl[i] += eps_list[n]
-                if(j < ds.rulingNum):
-                    der.xl[j] += eps_list[m]
-                else:
-                    der.xr[j] += eps_list[m]
-            else:
-                der.xr[i] += eps_list[n]
-                if(j < ds.rulingNum):
-                    der.xl[j] += eps_list[m]
-                else:
-                    der.xr[j] += eps_list[m]
-            f[2*m + n] = getSD(der,img)
-    return (f[0] - f[1] + f[2] - f[3])/(eps * eps)
+            p[i] += eps_list[n]
+            p[j] += eps_list[m]
+            f[2 * n + m] = getSD(p,ds,img,dx)
+    return (f[0] - f[2] + f[3] - f[1])/(eps * eps)
 
-def Func_Hess(ds: DevSrf.DevSrf,img:np.array):
-    f1, f2, f3, f4 = 0.0
-    der = ds
-    H = np.zeros((ds.rulingNum * 2, ds.rulingNum * 2, ))
-    for i in range(2 * ds.rulingNum):
-        for j in range(2 * ds.rulingNum):
-            H[i][j] = diff(i, j, ds, img)
+def Func_Hess(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
+    H = np.zeros((p.size, p.size, ))
+    for i in range(p.size):
+        for j in range(p.size):
+            H[i][j] = diff(i, j, p, ds, img, dx)
     return H
 
 #scipyによる最適化
 #https://scipy.github.io/devdocs/tutorial/optimize.html
-def optimization(ds: DevSrf.DevSrf,img:np.array):
-    return getSD(ds, img)
+#https://docs.scipy.org/doc/scipy/tutorial/optimize.html#constrained-minimization-of-multivariate-scalar-functions-minimize
+def optimization(x:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
+    return getSD(x,ds,img, dx)
+
+#n　rulingの数
+#A　パラメータの関係を表す行列(m * n) mは制約の数？->　2 * (n - 1)
+#lb, ub　下限、上限を表すベクトル ... 下限= -∞ 上限= 0
+## xL,i-1 < xL,i  && xR,i-1 < xR,i　の制約より
+#https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.LinearConstraint.html
+def setLinearConstrait(n:int):
+    A = np.zeros((2 * (n - 1), 2 * n))
+    lb = np.full(2 * (n - 1), -np.inf)
+    lu = np.zeros(2 * (n - 1))
+
+    m = 0
+    while m < 2 * (n - 1):
+        l = m
+        if m >= n - 1:
+            l += 1
+        A[m][l] = 1
+        A[m][l + 1] = -1
+        m += 1
+
+    return A, lb, lu
 
 def setRuling(ds:DevSrf.DevSrf, img: np.array):  
     dx = ds.MapWidth/ds.modelWidth
-
     step = ds.modelWidth/(ds.rulingNum + 1)
     xl  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
     xr  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
-    x = np.concatenate([xl, xr],0)
-    
-    #最適化
-    #res = minimize(optimization, x, method='trust-exact', jac=Func_Der, hess=Func_Hess, options={'gtol': 1e-8, 'disp': True})\
-    getSD(x, ds, img, dx)
+    p = np.concatenate([xl, xr],0)
+    A, lb, lu = setLinearConstrait(ds.rulingNum)
+    linearConstrait = LinearConstraint(A, lb, lu)
 
-    return
+    #最適化 <-パラメータの与え方と制約を与えればとりあえずは動くはず
+    res = minimize(optimization, p, args = (ds,img, dx), method='trust-constr', 
+    jac=Func_Der, hess=Func_Hess, constraints = linearConstrait, options={'gtol': 1e-2, 'disp': True})
+    
+    return res

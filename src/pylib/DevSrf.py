@@ -18,8 +18,8 @@ class DevSrf:
         self.modelWidth = modelWidth
         self.modelHeight = modelHeight     
         self.foldAngles = np.full((rulingNum,),foldAngle)
-        self.MapHeight = MapHeight
         self.MapWidth = MapWidth
+        self.MapHeight = MapHeight       
         step = modelWidth/(rulingNum + 1) 
         self.xl = np.linspace(step, modelWidth - step,rulingNum)
 

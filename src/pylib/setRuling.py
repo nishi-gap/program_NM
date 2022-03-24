@@ -160,9 +160,8 @@ def cb_optimization(x:np.ndarray, state):
 
     print("callback")
     print("------------------")
-    print("x : ", x)
     print("iteration : ", state.nit)
-    print("state x :", state.x)
+    print("parametor x :", state.x)
     print("------------------")
 
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html

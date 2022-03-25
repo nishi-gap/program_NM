@@ -64,13 +64,50 @@ def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float):
                         f += 1 - np.dot(Vave, img[x][y])
     return f
 
-def getSD2(p:np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float, i:int):
+#行列を作成して、行列積の解として得られたベクトルの要素の和
+def getSD2(p:np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float, n:list):
     f = 0.0
+
+    for i in n:
+        slicedImage = np.empty(0,dtype=float)
+
+        if i == 0:                
+            for y in range(0, ds.MapHeight):            
+                for x in range(0, round(y * (p[i + 1] - p[i + ds.rulingNum + 1])/ ds.modelHeight + p[i + 1] * dx)):
+                    if(0 <= x and x < ds.MapWidth):
+                        if(len(slicedImage) == 0):
+                            slicedImage = np.hstack([slicedImage,img[x][y]])
+                        else:
+                            slicedImage = np.vstack([slicedImage,img[x][y]])
+
+        elif i == ds.rulingNum - 1:
+            for y in range(0, ds.MapHeight):
+                for x in range(round(y * (p[i - 2] - p[i + ds.rulingNum - 2])/ ds.modelHeight + p[i - 2] * dx), ds.MapWidth):
+                    if(0 <= x and x < ds.MapWidth):
+                        if(len(slicedImage) == 0):
+                            slicedImage = np.hstack([slicedImage,img[x][y]])
+                        else:
+                            slicedImage = np.vstack([slicedImage,img[x][y]])
+
+        else:
+            for y in range(0, ds.MapHeight):
+                for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i + ds.rulingNum - 1] * dx),
+                    round(y * (p[i + 1] - p[i + ds.rulingNum + 1])/ ds.modelHeight + p[i + 1] * dx)):
+                    if(0 <= x and x < ds.MapWidth):
+                        if(len(slicedImage) == 0):
+                            slicedImage = np.hstack([slicedImage,img[x][y]])
+                        else:
+                            slicedImage = np.vstack([slicedImage,img[x][y]])
+
+        Vave = slicedImage.mean(axis = 0)
+        val = np.ones(len(slicedImage)) - np.dot(slicedImage, Vave)
+        f += sum(val)
+    print("f ",f)
     return f
 
-def cb_getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float, i:int):
-    if i != -1:
-        return  getSD2(p,ds,img,dx,i)
+def cb_getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float, l:list):
+    if len(l) != 0:
+        return  getSD2(p,ds,img,dx,l)
     else:
         return getSD(p,ds,img,dx)
 
@@ -94,9 +131,9 @@ def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
         x = p
         for i in range(p.size):
             x[i] += eps
-            f1 = getSD(x,ds,img,dx)
+            f1 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
             x[i] -= 2*eps
-            f2 = getSD(x,ds,img,dx)
+            f2 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
             x[i] += eps
             f_der[i] = (f1 - f2)/(2 * eps)
 
@@ -110,7 +147,7 @@ def diff(i:int, j:int, p:np.ndarray, ds:DevSrf.DevSrf, img:np.array, dx:float):
         for m in range(2):
             p[i] += eps_list[n]
             p[j] += eps_list[m]
-            f[2 * n + m] = getSD(p,ds,img,dx)
+            f[2 * n + m] = cb_getSD(p,ds,img,dx, [i % ds.rulingNum,j % ds.rulingNum])
     return (f[0] - f[2] + f[3] - f[1])/(eps * eps)
 
 
@@ -130,7 +167,7 @@ def Func_Hess(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
 #https://scipy.github.io/devdocs/tutorial/optimize.html
 #https://docs.scipy.org/doc/scipy/tutorial/optimize.html#constrained-minimization-of-multivariate-scalar-functions-minimize
 def optimization(x:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
-    f = getSD(x,ds,img, dx)
+    f = cb_getSD(x,ds,img, dx, [])
     print("called optimization ", f)
     return f
 

@@ -11,3 +11,6 @@ https://note.com/code82/n/n7678ec98c033
 
 指定のリモートリポジトリからpullする場合
 https://qiita.com/hinatades/items/d47dec72a87c5fed50f7
+
+特定のローカルリポジトリから指定のリモートリポジトリへとpush
+https://www-creators.com/archives/5206

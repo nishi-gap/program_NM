@@ -192,6 +192,16 @@ def setLinearConstrait(n:int):
 
     return A, lb, lu
 
+def set_SLSQP_ineq(p:np.ndarray, rulingNum:int):
+    cons = np.zeros(p.size - 2)
+    jac_cons, lb, lu = setLinearConstrait(rulingNum)
+    print("size ", cons.shape, jac_cons.shape)
+    if rulingNum != 1:
+        for i in range(rulingNum - 1):
+            cons[i] = p[i] - p[i + 1]
+            cons[i + rulingNum - 1] = p[i + rulingNum  - 1] - p[i + rulingNum]
+
+    return cons, jac_cons
 
 def cb_optimization(x:np.ndarray, state):
 
@@ -208,13 +218,18 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
     xl  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
     xr  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
     p = np.concatenate([xl, xr],0)
-    A, lb, lu = setLinearConstrait(ds.rulingNum)
-    linearConstrait = LinearConstraint(A, lb, lu)
-
+    
     #最適化 <-パラメータの与え方と制約を与えればとりあえずは動くはず
-    res = minimize(optimization, p, args = (ds,img, dx), method='trust-constr', 
-    jac=Func_Der, hess=Func_Hess, constraints = linearConstrait, callback= cb_optimization, options={'gtol': 1e-2, 'disp': True})
+    #A, lb, lu = setLinearConstrait(ds.rulingNum)
+    #linearConstrait = LinearConstraint(A, lb, lu)
+    #res = minimize(optimization, p, args = (ds,img, dx), method='trust-constr', 
+    #jac=Func_Der, hess=Func_Hess, constraints = linearConstrait, callback= cb_optimization, options={'gtol': 1e-2, 'disp': True})
 
+    SLSQP_fun, SLSQP_jac = set_SLSQP_ineq(p,ds.rulingNum)
+    cons_SLSQP = ({'type':'ineq', 'fun':SLSQP_fun, 'jac':SLSQP_jac})
+    res = minimize(optimization, x0 = p, args = (ds, img, dx), 
+    method = 'SLSQP', jac = Func_Der, 
+     constraints = cons_SLSQP, callback = cb_optimization, options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':50})
     print("result")
     print("Is success : ", res.key)
     print("parameter : ", res.x)

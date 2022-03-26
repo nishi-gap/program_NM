@@ -192,7 +192,8 @@ def setLinearConstrait(n:int):
 
     return A, lb, lu
 
-def set_SLSQP_ineq(p:np.ndarray, rulingNum:int):
+#引数がint型じゃないとだめのよう
+def set_SLSQP_ineq(x:int, p:np.ndarray, rulingNum:int):
     cons = np.zeros(p.size - 2)
     jac_cons, lb, lu = setLinearConstrait(rulingNum)
     print("size ", cons.shape, jac_cons.shape)
@@ -203,12 +204,14 @@ def set_SLSQP_ineq(p:np.ndarray, rulingNum:int):
 
     return cons, jac_cons
 
-def cb_optimization(x:np.ndarray, state):
-
+IterCnt = 0
+def cb_optimization(x:np.ndarray):
+    global IterCnt
+    IterCnt += 1
     print("callback")
     print("------------------")
-    print("iteration : ", state.nit)
-    print("parametor x :", state.x)
+    print("iteration : ", IterCnt)
+    print("parametor x :", x)
     print("------------------")
 
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
@@ -225,11 +228,12 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
     #res = minimize(optimization, p, args = (ds,img, dx), method='trust-constr', 
     #jac=Func_Der, hess=Func_Hess, constraints = linearConstrait, callback= cb_optimization, options={'gtol': 1e-2, 'disp': True})
 
-    SLSQP_fun, SLSQP_jac = set_SLSQP_ineq(p,ds.rulingNum)
-    cons_SLSQP = ({'type':'ineq', 'fun':SLSQP_fun, 'jac':SLSQP_jac})
+    #SLSQPが反復一回で終了→どこかおかしい
+    SLSQP_fun, SLSQP_jac = set_SLSQP_ineq(0,p,ds.rulingNum)
+    cons_SLSQP = ({'type':'ineq', 'fun':SLSQP_fun, 'jac':SLSQP_jac, 'args':(p, ds.rulingNum)}) #制約の与え方が間違っているっぽい
     res = minimize(optimization, x0 = p, args = (ds, img, dx), 
-    method = 'SLSQP', jac = Func_Der, 
-     constraints = cons_SLSQP, callback = cb_optimization, options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':50})
+    method = 'SLSQP', jac = Func_Der, constraints = cons_SLSQP, callback = cb_optimization,
+     options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':50})
     print("result")
     print("Is success : ", res.key)
     print("parameter : ", res.x)

@@ -4,64 +4,48 @@ from scipy.misc import derivative
 
 from src.pylib import DevSrf
 
-eps = 1e-2 #仮置き
+eps = 1e-1 #仮置き
 eps_list = [eps, -eps,]
+
+IS_DEBUG_MODE = 0
 
 def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float):
     f = 0.0
+
     for i in range(ds.rulingNum + 1):
-        r = g = b = 0.0
-        cnt = 0
+        slicedImage = np.empty(0,dtype=float)
+
         if i == 0:                
             for y in range(0, ds.MapHeight):            
-                for x in range(0, round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
+                for x in range(0, round(y * (p[i + 1] - p[i + ds.rulingNum + 1])/ ds.modelHeight + p[i + 1] * dx)):
                     if(0 <= x and x < ds.MapWidth):
-                        r += img[x][y][0]
-                        g += img[x][y][1]
-                        b += img[x][y][2]
-                        cnt += 1
-            r /= cnt
-            g /= cnt
-            b /= cnt
-            Vave = np.array([r,g,b])
-            for y in range(0, ds.MapHeight):            
-                for x in range(0, round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
-                    if(0 <= x and x < ds.MapWidth):
-                        f += 1 - np.dot(Vave, img[x][y])
+                        if(len(slicedImage) == 0):
+                            slicedImage = np.hstack([slicedImage,img[x][y]])
+                        else:
+                            slicedImage = np.vstack([slicedImage,img[x][y]])
+
         elif i == ds.rulingNum:
             for y in range(0, ds.MapHeight):
                 for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i - 1] * dx), ds.MapWidth):
                     if(0 <= x and x < ds.MapWidth):
-                        r += img[x][y][0]
-                        g += img[x][y][1]
-                        b += img[x][y][2]
-                        cnt += 1
-            r /= cnt
-            g /= cnt
-            b /= cnt
-            Vave = np.array([r,g,b])
-            for y in range(0, ds.MapHeight):
-                for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i - 1] * dx), ds.MapWidth):
-                    if(0 <= x and x < ds.MapWidth):
-                        f += 1 - np.dot(Vave, img[x][y])
+                        if(len(slicedImage) == 0):
+                            slicedImage = np.hstack([slicedImage,img[x][y]])
+                        else:
+                            slicedImage = np.vstack([slicedImage,img[x][y]])
+
         else:
             for y in range(0, ds.MapHeight):
                 for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i + ds.rulingNum - 1] * dx),
-                 round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
-                    if(0 < x and x < ds.MapWidth):
-                        r += img[x][y][0]
-                        g += img[x][y][1]
-                        b += img[x][y][2]
-                        cnt +=1 
-            r /= cnt
-            g /= cnt
-            b /= cnt
-            Vave = np.array([r,g,b])
-            for y in range(0, ds.MapHeight):
-                for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i + ds.rulingNum - 1] * dx),
-                 round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
-                    if(0 < x and x < ds.MapWidth):
-                        f += 1 - np.dot(Vave, img[x][y])
+                    round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
+                    if(0 <= x and x < ds.MapWidth):
+                        if(len(slicedImage) == 0):
+                            slicedImage = np.hstack([slicedImage,img[x][y]])
+                        else:
+                            slicedImage = np.vstack([slicedImage,img[x][y]])
+
+        Vave = slicedImage.mean(axis = 0)
+        val = np.ones(len(slicedImage)) - np.dot(slicedImage, Vave)
+        f += sum(val)
     return f
 
 #行列を作成して、行列積の解として得られたベクトルの要素の和
@@ -102,7 +86,7 @@ def getSD2(p:np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float, n:list):
         Vave = slicedImage.mean(axis = 0)
         val = np.ones(len(slicedImage)) - np.dot(slicedImage, Vave)
         f += sum(val)
-    print("f ",f)
+    #print("f ",f)
     return f
 
 def cb_getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float, l:list):
@@ -120,7 +104,8 @@ def grad(x:float, ndim:int, p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:
     return f
 
 def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
-    print("called First derivative")
+    if IS_DEBUG_MODE == 1:
+        print("called First derivative")
     f_der = np.zeros(p.size)
     if 0:
         #scipyの数値微分を使ったversion
@@ -136,7 +121,10 @@ def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
             f2 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
             x[i] += eps
             f_der[i] = (f1 - f2)/(2 * eps)
-
+            
+            if IS_DEBUG_MODE == 1:
+                print(i, f_der[i])
+            
     return f_der
 
 #f1 = f(i+h,j+h), f2 = f(i+h,j-h), f3 = f(i-h,j+h), f4 = f(i-h,j+h)
@@ -168,7 +156,8 @@ def Func_Hess(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
 #https://docs.scipy.org/doc/scipy/tutorial/optimize.html#constrained-minimization-of-multivariate-scalar-functions-minimize
 def optimization(x:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
     f = cb_getSD(x,ds,img, dx, [])
-    print("called optimization ", f)
+    if IS_DEBUG_MODE == 1:
+        print("called optimization ", f)
     return f
 
 #n　rulingの数
@@ -192,18 +181,6 @@ def setLinearConstrait(n:int):
 
     return A, lb, lu
 
-#引数がint型じゃないとだめのよう
-def set_SLSQP_ineq(x:int, p:np.ndarray, rulingNum:int):
-    cons = np.zeros(p.size - 2)
-    jac_cons, lb, lu = setLinearConstrait(rulingNum)
-    print("size ", cons.shape, jac_cons.shape)
-    if rulingNum != 1:
-        for i in range(rulingNum - 1):
-            cons[i] = p[i] - p[i + 1]
-            cons[i + rulingNum - 1] = p[i + rulingNum  - 1] - p[i + rulingNum]
-
-    return cons, jac_cons
-
 IterCnt = 0
 def cb_optimization(x:np.ndarray):
     global IterCnt
@@ -216,6 +193,9 @@ def cb_optimization(x:np.ndarray):
 
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
 def setRuling(ds:DevSrf.DevSrf, img: np.array):  
+
+    IS_DEBUG_MODE = 1 #0->false, 1 = true
+
     dx = ds.MapWidth/ds.modelWidth
     step = ds.modelWidth/(ds.rulingNum + 1)
     xl  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
@@ -228,12 +208,17 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
     #res = minimize(optimization, p, args = (ds,img, dx), method='trust-constr', 
     #jac=Func_Der, hess=Func_Hess, constraints = linearConstrait, callback= cb_optimization, options={'gtol': 1e-2, 'disp': True})
 
-    #SLSQPが反復一回で終了→どこかおかしい
-    SLSQP_fun, SLSQP_jac = set_SLSQP_ineq(0,p,ds.rulingNum)
-    cons_SLSQP = ({'type':'ineq', 'fun':SLSQP_fun, 'jac':SLSQP_jac, 'args':(p, ds.rulingNum)}) #制約の与え方が間違っているっぽい
+    #SLSQPの制約の与え方
+    #https://towardsdatascience.com/optimization-with-scipy-and-application-ideas-to-machine-learning-81d39c7938b8
+    #https://teratail.com/questions/181787
+    func_cons = ()
+    if ds.rulingNum != 1:
+        for i in range(ds.rulingNum - 1):
+            func_cons = func_cons + ({'type':'ineq', 'fun' : lambda p, n = i: p[n] - p[n + 1]},)
+    
     res = minimize(optimization, x0 = p, args = (ds, img, dx), 
-    method = 'SLSQP', jac = Func_Der, constraints = cons_SLSQP, callback = cb_optimization,
-     options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':50})
+    method = 'SLSQP', jac = Func_Der, constraints = func_cons, callback = cb_optimization,
+     options = {'gtol':1e-1, 'disp':True, 'eps':eps, 'maxiter':50})
     print("result")
     print("Is success : ", res.key)
     print("parameter : ", res.x)

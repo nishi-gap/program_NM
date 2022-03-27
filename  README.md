@@ -14,3 +14,7 @@ https://qiita.com/hinatades/items/d47dec72a87c5fed50f7
 
 特定のローカルリポジトリから指定のリモートリポジトリへとpush
 https://www-creators.com/archives/5206
+git push origin LOCAL_BRANCH:REMOTE_REPOSITORY
+
+branch作成　→　git branch BRANCH-NAME
+barnch削除　https://backlog.com/ja/git-tutorial/stepup/10/

@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import minimize, LinearConstraint
 from scipy.misc import derivative
 
-from src.pylib import DevSrf
+import DevSrf
 
 eps = 1e-1 #仮置き
 eps_list = [eps, -eps,]
@@ -16,32 +16,42 @@ def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float):
         slicedImage = np.empty(0,dtype=float)
 
         if i == 0:                
-            for y in range(0, ds.MapHeight):            
-                for x in range(0, round(y * (p[i + 1] - p[i + ds.rulingNum + 1])/ ds.modelHeight + p[i + 1] * dx)):
-                    if(0 <= x and x < ds.MapWidth):
-                        if(len(slicedImage) == 0):
-                            slicedImage = np.hstack([slicedImage,img[x][y]])
-                        else:
-                            slicedImage = np.vstack([slicedImage,img[x][y]])
+            for y in range(0, ds.MapHeight):   
+                if p[i + 2 * ds.rulingNum] != p[i + 3 * ds.rulingNum]:
+                    for x in range(0, round((y - p[i + 3 * ds.rulingNum] * dx) * (p[i + 1] - p[i + ds.rulingNum + 1])/ 
+                    (p[i + 2 * ds.rulingNum] - p[i + 3 * ds.rulingNum]) + p[i + 1] * dx)):
+                        if(0 <= x and x < ds.MapWidth):
+                            if(len(slicedImage) == 0):
+                                slicedImage = np.hstack([slicedImage,img[x][y]])
+                            else:
+                                slicedImage = np.vstack([slicedImage,img[x][y]])
+                else:
+                    #xの範囲が思いつかないため後回し
+                    print(1)
 
         elif i == ds.rulingNum:
             for y in range(0, ds.MapHeight):
-                for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i - 1] * dx), ds.MapWidth):
-                    if(0 <= x and x < ds.MapWidth):
-                        if(len(slicedImage) == 0):
-                            slicedImage = np.hstack([slicedImage,img[x][y]])
-                        else:
-                            slicedImage = np.vstack([slicedImage,img[x][y]])
+                if p[i + 2 * ds.rulingNum - 1] != p[i + 3 * ds.rulingNum - 1]:
+                    for x in range(round((y - p[i + 3 * ds.rulingNum - 1] * dx) * (p[i - 1] - p[i + ds.rulingNum - 1])/ 
+                    (p[i + 2 * ds.rulingNum - 1] - p[i + 3 * ds.rulingNum - 1]) + p[i - 1] * dx), ds.MapWidth):
+                        if(0 <= x and x < ds.MapWidth):
+                            if(len(slicedImage) == 0):
+                                slicedImage = np.hstack([slicedImage,img[x][y]])
+                            else:
+                                slicedImage = np.vstack([slicedImage,img[x][y]])
 
         else:
             for y in range(0, ds.MapHeight):
-                for x in range(round(y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i + ds.rulingNum - 1] * dx),
-                    round(y * (p[i] - p[i + ds.rulingNum])/ ds.modelHeight + p[i] * dx)):
-                    if(0 <= x and x < ds.MapWidth):
-                        if(len(slicedImage) == 0):
-                            slicedImage = np.hstack([slicedImage,img[x][y]])
-                        else:
-                            slicedImage = np.vstack([slicedImage,img[x][y]])
+                if p[i + 2 * ds.rulingNum - 1] != p[i + 3 * ds.rulingNum - 1]:
+                    for x in range(round((y - p[i + 3 * ds.rulingNum - 1] * dx) * (p[i - 1] - p[i + ds.rulingNum - 1])/
+                     (p[i + 2 * ds.rulingNum - 1] - p[i + 3 * ds.rulingNum - 1]) + p[i + ds.rulingNum - 1] * dx),
+                        round((y - p[i + 3 * ds.rulingNum ] * dx) * (p[i] - p[i + ds.rulingNum])/
+                         (p[i + 2 * ds.rulingNum] - p[i + 3 * ds.rulingNum]) + p[i] * dx)):
+                        if(0 <= x and x < ds.MapWidth):
+                            if(len(slicedImage) == 0):
+                                slicedImage = np.hstack([slicedImage,img[x][y]])
+                            else:
+                                slicedImage = np.vstack([slicedImage,img[x][y]])
 
         Vave = slicedImage.mean(axis = 0)
         val = np.ones(len(slicedImage)) - np.dot(slicedImage, Vave)
@@ -115,15 +125,18 @@ def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
     else:
         x = p
         for i in range(p.size):
-            x[i] += eps
-            f1 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
-            x[i] -= 2*eps
-            f2 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
-            x[i] += eps
-            f_der[i] = (f1 - f2)/(2 * eps)
-            
-            if IS_DEBUG_MODE == 1:
-                print(i, f_der[i])
+            if i < p.size/2 or (i >= p.size/2 and not(0 < x[i - int(p.size/2)] < ds.modelWidth)):
+                x[i] += eps
+                f1 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
+                x[i] -= 2*eps
+                f2 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
+                x[i] += eps
+                f_der[i] = (f1 - f2)/(2 * eps)
+            else:
+                f_der[i] = 0
+                    
+    if IS_DEBUG_MODE == 1:
+        print(f_der)
             
     return f_der
 
@@ -137,7 +150,6 @@ def diff(i:int, j:int, p:np.ndarray, ds:DevSrf.DevSrf, img:np.array, dx:float):
             p[j] += eps_list[m]
             f[2 * n + m] = cb_getSD(p,ds,img,dx, [i % ds.rulingNum,j % ds.rulingNum])
     return (f[0] - f[2] + f[3] - f[1])/(eps * eps)
-
 
 #ヘッセ行列の2階微分のやり方間違っているかも
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.HessianUpdateStrategy.html#scipy.optimize.HessianUpdateStrategy
@@ -188,7 +200,9 @@ def cb_optimization(x:np.ndarray):
     print("callback")
     print("------------------")
     print("iteration : ", IterCnt)
-    print("parametor x :", x)
+    print("parametor x :")
+    for i in range(int(x.size/4)):
+        print(i, " :  xL{%f, %f}, xR{%f, %f}" %(x[i], x[i + int(x.size/2)], x[i + int(x.size/4)], x[i + 3 * int(x.size/4)]))
     print("------------------")
 
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
@@ -198,10 +212,15 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
 
     dx = ds.MapWidth/ds.modelWidth
     step = ds.modelWidth/(ds.rulingNum + 1)
-    xl  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
-    xr  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
-    p = np.concatenate([xl, xr],0)
-    
+
+    #最適化するパラメータを一次元(xL ->(), xR->())から二次元(xL->(,), xR->(,))へとする→パラメータ数 4 * rulingNum
+    x_w  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
+    xl_h = np.full(ds.rulingNum, ds.modelHeight)
+    xr_h = np.zeros(ds.rulingNum)
+    p = np.concatenate([x_w, x_w, xl_h, xr_h],0)
+    for i in range(int(p.size/4)):
+        print(i, " :  xL{%f, %f}, xR{%f, %f}" %(p[i], p[i + int(p.size/2)], p[i + int(p.size/4)], p[i + 3 * int(p.size/4)]))
+    print("------------------")
     #最適化 <-パラメータの与え方と制約を与えればとりあえずは動くはず
     #A, lb, lu = setLinearConstrait(ds.rulingNum)
     #linearConstrait = LinearConstraint(A, lb, lu)
@@ -211,13 +230,23 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
     #SLSQPの制約の与え方
     #https://towardsdatascience.com/optimization-with-scipy-and-application-ideas-to-machine-learning-81d39c7938b8
     #https://teratail.com/questions/181787
-    func_cons = ()
+    #パラメータが変わったためここも修正必須
+    cons = ()
     if ds.rulingNum != 1:
         for i in range(ds.rulingNum - 1):
-            func_cons = func_cons + ({'type':'ineq', 'fun' : lambda p, n = i: p[n] - p[n + 1]},)
+            cons = cons + ({'type':'ineq', 'fun' : lambda p, n = i: p[n] - p[n + 1]},)
+            cons = cons + ({'type':'ineq', 'fun' : lambda p, n = i + ds.rulingNum: p[n] - p[n + 1]},)
     
-    res = minimize(optimization, x0 = p, args = (ds, img, dx), 
-    method = 'SLSQP', jac = Func_Der, constraints = func_cons, callback = cb_optimization,
+    bnds = ()
+    for i in range(4):
+        for j in range(ds.rulingNum):
+            if i < 2:
+                bnds = bnds + ((0,ds.modelWidth),)
+            else:
+                bnds = bnds + ((0,ds.modelHeight),)
+
+    res = minimize(optimization, x0 = p, args = (ds, img, dx), method = 'SLSQP', jac = Func_Der, 
+    constraints = cons, bounds = bnds, callback = cb_optimization,
      options = {'gtol':1e-1, 'disp':True, 'eps':eps, 'maxiter':50})
     print("result")
     print("Is success : ", res.key)

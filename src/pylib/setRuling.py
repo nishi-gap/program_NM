@@ -125,7 +125,14 @@ def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
     else:
         x = p
         for i in range(p.size):
-            if i < p.size/2 or (i >= p.size/2 and not(0 < x[i - int(p.size/2)] < ds.modelWidth)):
+            if i < 2 * ds.rulingNum:
+                x[i] += eps
+                f1 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
+                x[i] -= 2*eps
+                f2 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
+                x[i] += eps
+                f_der[i] = (f1 - f2)/(2 * eps)
+            elif i >= 2 * ds.rulingNum and not (0 < x[i - 2 * ds.rulingNum] < ds.modelWidth):
                 x[i] += eps
                 f1 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
                 x[i] -= 2*eps
@@ -218,9 +225,9 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
     xl_h = np.full(ds.rulingNum, ds.modelHeight)
     xr_h = np.zeros(ds.rulingNum)
     p = np.concatenate([x_w, x_w, xl_h, xr_h],0)
-    for i in range(int(p.size/4)):
+    for i in range(ds.rulingNum):
         print(i, " :  xL{%f, %f}, xR{%f, %f}" %(p[i], p[i + int(p.size/2)], p[i + int(p.size/4)], p[i + 3 * int(p.size/4)]))
-    print("------------------")
+    print("===========================")
     #最適化 <-パラメータの与え方と制約を与えればとりあえずは動くはず
     #A, lb, lu = setLinearConstrait(ds.rulingNum)
     #linearConstrait = LinearConstraint(A, lb, lu)
@@ -233,9 +240,9 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
     #パラメータが変わったためここも修正必須
     cons = ()
     if ds.rulingNum != 1:
-        for i in range(ds.rulingNum - 1):
-            cons = cons + ({'type':'ineq', 'fun' : lambda p, n = i: p[n] - p[n + 1]},)
-            cons = cons + ({'type':'ineq', 'fun' : lambda p, n = i + ds.rulingNum: p[n] - p[n + 1]},)
+        for j in range(2):
+            for i in range(ds.rulingNum - 1):
+                cons = cons + ({'type':'ineq', 'fun' : lambda p, n = i + j * ds.rulingNum: (p[n + 1] - p[i])},)
     
     bnds = ()
     for i in range(4):
@@ -244,12 +251,13 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
                 bnds = bnds + ((0,ds.modelWidth),)
             else:
                 bnds = bnds + ((0,ds.modelHeight),)
-
-    res = minimize(optimization, x0 = p, args = (ds, img, dx), method = 'SLSQP', jac = Func_Der, 
+    
+    res = minimize(optimization, x0 = p, args = (ds, img, dx), method = 'COBYLA', jac = Func_Der, 
     constraints = cons, bounds = bnds, callback = cb_optimization,
-     options = {'gtol':1e-1, 'disp':True, 'eps':eps, 'maxiter':50})
-    print("result")
-    print("Is success : ", res.key)
-    print("parameter : ", res.x)
+     options = {'gtol':1e-1, 'disp':True, 'eps':eps, 'maxiter':1000})
 
+    #print(res)
+    for i in range(ds.rulingNum):
+        print(i, " :  xL{%f, %f}, xR{%f, %f}" %(res.x[i], res.x[i + 2 * ds.rulingNum], res.x[i + ds.rulingNum], res.x[i + 3 * ds.rulingNum]))
+    print("===========================")
     return res

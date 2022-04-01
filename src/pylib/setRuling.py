@@ -1,8 +1,9 @@
 import numpy as np
 from scipy.optimize import minimize, LinearConstraint
-from scipy.misc import derivative
+import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 
-import DevSrf
+from src.pylib import DevSrf
 
 eps = 1e-1 #仮置き
 eps_list = [eps, -eps,]
@@ -105,42 +106,28 @@ def cb_getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float, l:list):
     else:
         return getSD(p,ds,img,dx)
 
-#https://docs.scipy.org/doc/scipy/reference/generated/scipy.misc.derivative.html
-#https://github.com/tttamaki/lecture_code/blob/main/MachineLearningMath/differentiation_scipy.ipynb
-#https://home.hirosaki-u.ac.jp/jupyter/python-sk/
-#x:微分するパラメータ, eps:微小区間, ndim:何階微分
-def grad(x:float, ndim:int, p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float):
-    f = derivative(func = getSD, x0 = x, args = (p,ds,img,dx), dx = eps, n = ndim)
-    return f
-
 def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, dx:float):
     if IS_DEBUG_MODE == 1:
         print("called First derivative")
     f_der = np.zeros(p.size)
-    if 0:
-        #scipyの数値微分を使ったversion
-        for i in range(p.size):
-            f_der[i] = grad(p[i], 1, p, ds, img, dx)
-        return f_der
-    else:
-        x = p
-        for i in range(p.size):
-            if i < 2 * ds.rulingNum:
-                x[i] += eps
-                f1 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
-                x[i] -= 2*eps
-                f2 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
-                x[i] += eps
-                f_der[i] = (f1 - f2)/(2 * eps)
-            elif i >= 2 * ds.rulingNum and not (0 < x[i - 2 * ds.rulingNum] < ds.modelWidth):
-                x[i] += eps
-                f1 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
-                x[i] -= 2*eps
-                f2 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
-                x[i] += eps
-                f_der[i] = (f1 - f2)/(2 * eps)
-            else:
-                f_der[i] = 0
+    x = p
+    for i in range(p.size):
+        if i < 2 * ds.rulingNum:
+            x[i] += eps
+            f1 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
+            x[i] -= 2*eps
+            f2 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
+            x[i] += eps
+            f_der[i] = (f1 - f2)/(2 * eps)
+        elif i >= 2 * ds.rulingNum and not (0 < x[i - 2 * ds.rulingNum] < ds.modelWidth):
+            x[i] += eps
+            f1 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
+            x[i] -= 2*eps
+            f2 = cb_getSD(x,ds,img,dx, [i % ds.rulingNum])
+            x[i] += eps
+            f_der[i] = (f1 - f2)/(2 * eps)
+        else:
+            f_der[i] = 0
                     
     if IS_DEBUG_MODE == 1:
         print(f_der)
@@ -200,26 +187,39 @@ def setLinearConstrait(n:int):
 
     return A, lb, lu
 
+#https://www.delftstack.com/ja/howto/matplotlib/how-to-automate-plot-updates-in-matplotlib/
+#matplotlibを使ってのグラフ更新
 IterCnt = 0
 def cb_optimization(x:np.ndarray):
     global IterCnt
     IterCnt += 1
+
+    ruledLines = []
     print("callback")
     print("------------------")
     print("iteration : ", IterCnt)
     print("parametor x :")
     for i in range(int(x.size/4)):
-        print(i, " :  xL{%f, %f}, xR{%f, %f}" %(x[i], x[i + int(x.size/2)], x[i + int(x.size/4)], x[i + 3 * int(x.size/4)]))
+        ruledLines.append([[x[i], x[i + int(x.size/2)]],[x[i + int(x.size/4)], x[i + 3 * int(x.size/4)]]])  
+        #print(i, " :  xL{%f, %f}, xR{%f, %f}" %(x[i], x[i + int(x.size/2)], x[i + int(x.size/4)], x[i + 3 * int(x.size/4)]))
     print("------------------")
+    fig, ax = plt.subplots()
+    ax.set_xlim(-5, 25)
+    ax.set_ylim(-5, 15)
+    lc = LineCollection(ruledLines)
+    ax.add_collection(lc)
+    ax.set_title("iteration %d"%IterCnt)
+    plt.show()
 
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
 def setRuling(ds:DevSrf.DevSrf, img: np.array):  
 
     IS_DEBUG_MODE = 1 #0->false, 1 = true
-
     dx = ds.MapWidth/ds.modelWidth
     step = ds.modelWidth/(ds.rulingNum + 1)
 
+    plt.ion()
+    
     #最適化するパラメータを一次元(xL ->(), xR->())から二次元(xL->(,), xR->(,))へとする→パラメータ数 4 * rulingNum
     x_w  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
     xl_h = np.full(ds.rulingNum, ds.modelHeight)
@@ -261,3 +261,4 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
         print(i, " :  xL{%f, %f}, xR{%f, %f}" %(res.x[i], res.x[i + 2 * ds.rulingNum], res.x[i + ds.rulingNum], res.x[i + 3 * ds.rulingNum]))
     print("===========================")
     return res
+     #最適化で折り線がどう動いているか見れるようにする

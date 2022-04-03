@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import minimize, LinearConstraint
 from scipy.misc import derivative
 import sys
-import DevSrf
+from pylib import DevSrf
 
 eps = 1 #仮置き
 eps_list = [eps, -eps,]

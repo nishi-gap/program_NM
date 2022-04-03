@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.optimize import minimize, LinearConstraint
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
 
 from src.pylib import DevSrf
+from src.pylib import DrawRuling
 
 eps = 1e-1 #仮置き
 eps_list = [eps, -eps,]
@@ -102,7 +102,7 @@ def getSD2(p:np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float, n:list):
 
 def cb_getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, dx:float, l:list):
     if len(l) != 0:
-        return  getSD2(p,ds,img,dx,l)
+        return  getSD(p,ds,img,dx)
     else:
         return getSD(p,ds,img,dx)
 
@@ -190,26 +190,22 @@ def setLinearConstrait(n:int):
 #https://www.delftstack.com/ja/howto/matplotlib/how-to-automate-plot-updates-in-matplotlib/
 #matplotlibを使ってのグラフ更新
 IterCnt = 0
+RuledLines = np.empty(0,dtype=float)
 def cb_optimization(x:np.ndarray):
-    global IterCnt
+    global IterCnt, RuledLines
     IterCnt += 1
-
-    ruledLines = []
     print("callback")
     print("------------------")
     print("iteration : ", IterCnt)
     print("parametor x :")
     for i in range(int(x.size/4)):
-        ruledLines.append([[x[i], x[i + int(x.size/2)]],[x[i + int(x.size/4)], x[i + 3 * int(x.size/4)]]])  
-        #print(i, " :  xL{%f, %f}, xR{%f, %f}" %(x[i], x[i + int(x.size/2)], x[i + int(x.size/4)], x[i + 3 * int(x.size/4)]))
+        #r.append([[x[i], x[i + int(x.size/2)]],[x[i + int(x.size/4)], x[i + 3 * int(x.size/4)]]])  
+        print(i, " :  xL{%f, %f}, xR{%f, %f}" %(x[i], x[i + int(x.size/2)], x[i + int(x.size/4)], x[i + 3 * int(x.size/4)]))
     print("------------------")
-    fig, ax = plt.subplots()
-    ax.set_xlim(-5, 25)
-    ax.set_ylim(-5, 15)
-    lc = LineCollection(ruledLines)
-    ax.add_collection(lc)
-    ax.set_title("iteration %d"%IterCnt)
-    plt.show()
+    if(len(RuledLines) == 0):
+        RuledLines = np.hstack([RuledLines,x])
+    else: RuledLines = np.vstack([RuledLines,x])
+
 
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
 def setRuling(ds:DevSrf.DevSrf, img: np.array):  
@@ -217,8 +213,6 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
     IS_DEBUG_MODE = 1 #0->false, 1 = true
     dx = ds.MapWidth/ds.modelWidth
     step = ds.modelWidth/(ds.rulingNum + 1)
-
-    plt.ion()
     
     #最適化するパラメータを一次元(xL ->(), xR->())から二次元(xL->(,), xR->(,))へとする→パラメータ数 4 * rulingNum
     x_w  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
@@ -252,13 +246,15 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
             else:
                 bnds = bnds + ((0,ds.modelHeight),)
     
-    res = minimize(optimization, x0 = p, args = (ds, img, dx), method = 'COBYLA', jac = Func_Der, 
+    maxiter = 20
+    res = minimize(optimization, x0 = p, args = (ds, img, dx), method = 'SLSQP', jac = Func_Der, 
     constraints = cons, bounds = bnds, callback = cb_optimization,
-     options = {'gtol':1e-1, 'disp':True, 'eps':eps, 'maxiter':1000})
-
+     options = {'gtol':1e-1, 'disp':True, 'eps':eps, 'maxiter':maxiter})
     #print(res)
     for i in range(ds.rulingNum):
         print(i, " :  xL{%f, %f}, xR{%f, %f}" %(res.x[i], res.x[i + 2 * ds.rulingNum], res.x[i + ds.rulingNum], res.x[i + 3 * ds.rulingNum]))
     print("===========================")
-    return res
+
+    DrawRuling.dispResult(RuledLines)
+    return RuledLines
      #最適化で折り線がどう動いているか見れるようにする

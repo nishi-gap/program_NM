@@ -32,6 +32,6 @@ def readEXR(file: str):
     
     img = img.reshape(size[1], size[0], 3)
     img = img.transpose((1,0,2))
-    nm = C2V(img, size[0], size[1]) #色ベクトルから単位法線ベクトル
+    #nm = C2V(img, size[0], size[1]) #色ベクトルから単位法線ベクトル
     
-    return nm
+    return img

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
 from matplotlib.animation import FuncAnimation
 import numpy as np
+from PIL import Image
 
 fig, ax = plt.subplots()
 xdata, ydata = [], []
@@ -28,4 +28,6 @@ def dispResult(_ruledLines):
     ruledLines = _ruledLines
     iter = ruledLines.shape[0]
     ani = FuncAnimation(fig,update,frames=iter)
+    ani.save('img/result.gif', writer='pillow') 
     plt.show()
+    

@@ -7,8 +7,8 @@ from src.pylib import DrawRuling
 eps = 1e-2 #仮置き
 eps_list = [eps, -eps,]
 
-xstep = 0.5
-ystep = 0.5
+xstep = 0.1
+ystep = 0.1
 ff = 1e+6
 
 IS_DEBUG_MODE = 0
@@ -99,7 +99,6 @@ def Ffair(p:np.ndarray):
     for i in range(n - 1):
         if p[i] > p[i + 1]: f += (p[i] - p[i + 1])
         if p[i + n] > p[i + n + 1]: f += (p[i + n] > p[i + n + 1])
-
     return ff * f
 
 def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, ratio:list):
@@ -136,7 +135,7 @@ def diff(i:int, j:int, x:np.ndarray, ds:DevSrf.DevSrf, img:np.array, ratio:list)
 #https://scipy.github.io/devdocs/tutorial/optimize.html
 #https://docs.scipy.org/doc/scipy/tutorial/optimize.html#constrained-minimization-of-multivariate-scalar-functions-minimize
 def optimization(x:np.ndarray, ds: DevSrf.DevSrf,img:np.array, ratio:list):
-    f = getSD(x,ds,img, ratio)
+    f = getSD(x,ds,img, ratio) + Ffair(x)
     return f
 
 #https://www.delftstack.com/ja/howto/matplotlib/how-to-automate-plot-updates-in-matplotlib/
@@ -181,9 +180,8 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
                 cons = cons + ({'type':'ineq', 'fun' : lambda p, n = i + j * ds.rulingNum: (p[n + 1] - p[i])},)
     
     maxiter = 50
-    res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = 'BFGS', jac = Func_Der, 
-    constraints = cons, callback = cb_optimization,
-     options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':maxiter})
+    res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = 'Powell',  
+    callback = cb_optimization,options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':maxiter})
     
     #print(res)
     for i in range(ds.rulingNum):

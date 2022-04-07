@@ -18,7 +18,7 @@ def Smoothing(img:np.ndarray,x:float,y:float, X:int,Y:int, ratio:list):
     yi = int(y)
     xf = x - xi
     yf = y - yi
-    Ism = (xf + yf) * img[xi][yi]
+    Ism = img[xi][yi]
     if xi + int(ratio[0] * xstep)< X:
         Ism += (1 - xf) * img[xi + int(ratio[0] * xstep)][yi]
         if yi + int(ratio[1] * ystep) < Y:
@@ -45,7 +45,7 @@ def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, ratio:list):
                 x = 0
                 xr = min(y * (p[i + 1] - p[i + ds.rulingNum + 1])/ ds.MapHeight + p[i + 1] * ratio[0], ds.MapWidth)   
                 while x < xr:
-                    im = C2V(Smoothing(img,x,y,ds.MapWidth,ds.MapHeight, ratio))
+                    im = (Smoothing(img,x,y,ds.MapWidth,ds.MapHeight, ratio))
                     if(len(slicedImage) == 0):
                         slicedImage = np.hstack([slicedImage,im])
                     else:
@@ -58,7 +58,7 @@ def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, ratio:list):
                 x = max(0,y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.MapHeight + p[i - 1] * ratio[0])
                 xr = ds.MapWidth
                 while x < xr:
-                    im = C2V(Smoothing(img,x,y,ds.MapWidth,ds.MapHeight, ratio))
+                    im = (Smoothing(img,x,y,ds.MapWidth,ds.MapHeight, ratio))
                     if(len(slicedImage) == 0):
                         slicedImage = np.hstack([slicedImage,im])
                     else:
@@ -68,11 +68,11 @@ def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, ratio:list):
 
         else:
             while y < yt:
-                x = max(0,y * (p[i - 1] - p[i + ds.rulingNum - 1])/ds.MapHeight + p[i + ds.rulingNum - 1] * ratio[0])
-                xr = min(y * (p[i] - p[i + ds.rulingNum])/ds.MapHeight + p[i] * ratio[0],ds.MapWidth)
+                x = min(max(0,y * (p[i - 1] - p[i + ds.rulingNum - 1])/ds.MapHeight + p[i + ds.rulingNum - 1] * ratio[0]),ds.MapWidth)
+                xr = min(max(0,y * (p[i] - p[i + ds.rulingNum])/ds.MapHeight + p[i] * ratio[0],0),ds.MapWidth)
                 if x > xr: x, xr = xr, x
                 while x < xr:
-                    im = C2V(Smoothing(img,x,y,ds.MapWidth,ds.MapHeight,ratio))
+                    im = (Smoothing(img,x,y,ds.MapWidth,ds.MapHeight,ratio))
                     if(len(slicedImage) == 0):
                         slicedImage = np.hstack([slicedImage,im])
                     else:
@@ -80,14 +80,12 @@ def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, ratio:list):
                     x += ratio[0] * xstep
                 y += ratio[1] * ystep
                         
-
         Vave = slicedImage.mean(axis = 0)
-
         f1 = 0.0
         f2 = 0.0
         for v in slicedImage:
             f1 += LA.norm(v - Vave)
-        f2 = sum(np.ones(len(slicedImage)) - np.dot(slicedImage, Vave))
+        #f2 = sum(np.ones(len(slicedImage)) - np.dot(slicedImage, Vave))
         #print(i,f1,f2)
         f += f1
 
@@ -180,7 +178,7 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
                 cons = cons + ({'type':'ineq', 'fun' : lambda p, n = i + j * ds.rulingNum: (p[n + 1] - p[i])},)
     
     maxiter = 50
-    res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = 'Powell',  
+    res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = 'BFGS',  
     callback = cb_optimization,options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':maxiter})
     
     #print(res)
@@ -189,6 +187,6 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
     print("===========================")
 
 
-    DrawRuling.dispResult(RuledLines)
+    DrawRuling.dispResult(RuledLines, ds.modelWidth, ds.modelHeight)
     return RuledLines
      #最適化で折り線がどう動いているか見れるようにする

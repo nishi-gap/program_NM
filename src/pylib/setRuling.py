@@ -178,7 +178,7 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
                 cons = cons + ({'type':'ineq', 'fun' : lambda p, n = i + j * ds.rulingNum: (p[n + 1] - p[i])},)
     
     maxiter = 50
-    res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = 'BFGS',  
+    res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = 'L-BFGS-B',  
     callback = cb_optimization,options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':maxiter})
     
     #print(res)

@@ -20,9 +20,9 @@ def Smoothing(img:np.ndarray,x:float,y:float, X:int,Y:int, ratio:list):
     yf = y - yi
     Ism = img[xi][yi]
     if xi + int(ratio[0] * xstep)< X:
-        Ism += (1 - xf) * img[xi + int(ratio[0] * xstep)][yi]
+        Ism += (1 - xf) * (img[xi + int(ratio[0] * xstep)][yi] - img[xi][yi])
         if yi + int(ratio[1] * ystep) < Y:
-            Ism += (1 - yf) * img[xi][yi + int(ratio[1] * ystep)]
+            Ism += (1 - yf) * (img[xi][yi + int(ratio[1] * ystep)] - img[xi][yi])
     Ism = 2 * Ism - 1
     Ism /= LA.norm(Ism)
     Ism = (Ism + 1)/2
@@ -157,7 +157,6 @@ def cb_optimization(x:np.ndarray):
 
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
 def setRuling(ds:DevSrf.DevSrf, img: np.array):  
-    IS_DEBUG_MODE = 1 #0->false, 1 = true
     dx = ds.MapWidth/ds.modelWidth
     dy = ds.MapHeight/ds.modelHeight
     ratio = [dx,dy]

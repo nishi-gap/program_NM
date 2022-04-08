@@ -22,4 +22,3 @@ class DevSrf:
         self.MapHeight = MapHeight       
         step = modelWidth/(rulingNum + 1) 
         self.xl = np.linspace(step, modelWidth - step,rulingNum)
-

@@ -94,7 +94,7 @@ def Ffair(p:np.ndarray, W:int):
     n = int(len(p)/2)
     for i in range(n - 1):
         if p[i] > p[i + 1]: f += (p[i] - p[i + 1])
-        if p[i + n] > p[i + n + 1]: f += (p[i + n] > p[i + n + 1])
+        if p[i + n] > p[i + n + 1]: f += (p[i + n] - p[i + n + 1])
         if p[i] < 0 and p[i + n] < 0:
             f += abs(p[i] + p[i + n])
         if p[i] > W and p[i + n] > W:

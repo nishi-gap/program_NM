@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import minimize, LinearConstraint
+import sys
 from numpy import linalg as LA
 from src.pylib import DevSrf
 from src.pylib import DrawRuling
@@ -14,15 +15,15 @@ ff = 1e+6
 IS_DEBUG_MODE = 0
 
 def Smoothing(img:np.ndarray,x:float,y:float, X:int,Y:int, ratio:list): 
-    xi = int(x)
-    yi = int(y)
-    xf = x - xi
-    yf = y - yi
+    xi = int(x * ratio[0])
+    yi = int(y * ratio[1])
+    xf = x - int(x)
+    yf = y - int(y)
     Ism = img[xi][yi]
-    if xi + int(ratio[0] * xstep)< X:
-        Ism += (1 - xf) * (img[xi + int(ratio[0] * xstep)][yi] - img[xi][yi])
+    if xi + int(xstep * ratio[0])< X:
+        Ism += xf * (img[xi + int(ratio[0] * xstep)][yi] - img[xi][yi])
         if yi + int(ratio[1] * ystep) < Y:
-            Ism += (1 - yf) * (img[xi][yi + int(ratio[1] * ystep)] - img[xi][yi])
+            Ism += yf * (img[xi][yi + int(ratio[1] * ystep)] - img[xi][yi])
     Ism = 2 * Ism - 1
     Ism /= LA.norm(Ism)
     Ism = (Ism + 1)/2
@@ -39,37 +40,37 @@ def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, ratio:list):
     for i in range(ds.rulingNum + 1):
         slicedImage = np.empty(0,dtype=float)
         y = 0
-        yt = ds.MapHeight
+        yt = ds.modelHeight
         if i == 0: 
             while y < yt:
                 x = 0
-                xr = min(y * (p[i + 1] - p[i + ds.rulingNum + 1])/ ds.MapHeight + p[i + 1] * ratio[0], ds.MapWidth)   
+                xr = min(y * (p[i + 1] - p[i + ds.rulingNum + 1])/ ds.modelHeight + p[i + 1], ds.modelWidth)   
                 while x < xr:
                     im = (Smoothing(img,x,y,ds.MapWidth,ds.MapHeight, ratio))
                     if(len(slicedImage) == 0):
                         slicedImage = np.hstack([slicedImage,im])
                     else:
                         slicedImage = np.vstack([slicedImage,im])
-                    x += ratio[0] * xstep
-                y += ratio[1] * ystep
+                    x += xstep
+                y += ystep
 
         elif i == ds.rulingNum:
             while y < yt:
-                x = max(0,y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.MapHeight + p[i - 1] * ratio[0])
-                xr = ds.MapWidth
+                x = max(0,y * (p[i - 1] - p[i + ds.rulingNum - 1])/ ds.modelHeight + p[i - 1])
+                xr = ds.modelWidth
                 while x < xr:
                     im = (Smoothing(img,x,y,ds.MapWidth,ds.MapHeight, ratio))
                     if(len(slicedImage) == 0):
                         slicedImage = np.hstack([slicedImage,im])
                     else:
                         slicedImage = np.vstack([slicedImage,im])
-                    x += ratio[0] * xstep
-                y += ratio[1] * ystep
+                    x += xstep
+                y += ystep
 
         else:
             while y < yt:
-                x = min(max(0,y * (p[i - 1] - p[i + ds.rulingNum - 1])/ds.MapHeight + p[i + ds.rulingNum - 1] * ratio[0]),ds.MapWidth)
-                xr = min(max(0,y * (p[i] - p[i + ds.rulingNum])/ds.MapHeight + p[i] * ratio[0],0),ds.MapWidth)
+                x = min(max(0,y * (p[i - 1] - p[i + ds.rulingNum - 1])/ds.modelHeight + p[i + ds.rulingNum - 1]),ds.modelWidth)
+                xr = min(max(0,y * (p[i] - p[i + ds.rulingNum])/ds.modelHeight + p[i]),ds.modelWidth)
                 if x > xr: x, xr = xr, x
                 while x < xr:
                     im = (Smoothing(img,x,y,ds.MapWidth,ds.MapHeight,ratio))
@@ -77,9 +78,11 @@ def getSD(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, ratio:list):
                         slicedImage = np.hstack([slicedImage,im])
                     else:
                         slicedImage = np.vstack([slicedImage,im])
-                    x += ratio[0] * xstep
-                y += ratio[1] * ystep
-                        
+                    x += xstep
+                y += ystep
+        if len(slicedImage) == 0:
+            print("slicedImage is empty at ",i,x,xr,y,yt)
+            sys.exit()
         Vave = slicedImage.mean(axis = 0)
         f1 = 0.0
         f2 = 0.0
@@ -109,7 +112,7 @@ def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, ratio:list):
         f1 = getSD(x,ds,img,ratio) + Ffair(p)
         x[i] -= 2*eps
         f2 = getSD(x,ds,img,ratio) + Ffair(p)
-        x[i] += eps
+        x[i] = p[i]
         f_der[i] = (f1 - f2)/(2 * eps)
                     
     if IS_DEBUG_MODE == 1:
@@ -155,36 +158,52 @@ def cb_optimization(x:np.ndarray):
         RuledLines = np.hstack([RuledLines,x])
     else: RuledLines = np.vstack([RuledLines,x])
 
+def steepestDescent(p:np.ndarray,ds:DevSrf.DevSrf,img:np.ndarray,step:float,ratio:list, maxItr:int):
+    itr = 0
+    tol = 1e-1
+    global RuledLines
+    RuledLines = np.hstack([RuledLines,p])
+    while itr < maxItr:
+        der = Func_Der(p,ds,img,ratio)
+        if LA.norm(der) < tol:
+            return
+        p -= step * der
+        RuledLines = np.vstack([RuledLines,p])
+        print(itr," : ",p)
+        itr += 1
+
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
 def setRuling(ds:DevSrf.DevSrf, img: np.array):  
     dx = ds.MapWidth/ds.modelWidth
     dy = ds.MapHeight/ds.modelHeight
     ratio = [dx,dy]
     step = ds.modelWidth/(ds.rulingNum + 1)
-    
-    #最適化するパラメータを一次元(xL ->(), xR->())から二次元(xL->(,), xR->(,))へとする→パラメータ数 4 * rulingNum
-    x_w  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
-    p = np.concatenate([x_w, x_w],0)
 
-    #SLSQPの制約の与え方
-    #https://towardsdatascience.com/optimization-with-scipy-and-application-ideas-to-machine-learning-81d39c7938b8
-    #https://teratail.com/questions/181787
-    #パラメータが変わったためここも修正必須
-    cons = ()
+    x_w  = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
+    p = np.concatenate([x_w, x_w],0)    
+    maxiter = 100
+    steepestDescent(p,ds,img, 0.1, ratio, maxiter)
+    """
+    method = 'Nelder-Mead'
+    if method == 'Nelder-Mead':
+        res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = method,  
+    callback = cb_optimization,options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':maxiter})
+    elif method == 'L-BFGS-B':
+        res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = method, jac = Func_Der, 
+    callback = cb_optimization,options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':maxiter})
+    elif method == 'SLSQP':
+            cons = ()
     if ds.rulingNum != 1:
         for j in range(2):
             for i in range(ds.rulingNum - 1):
                 cons = cons + ({'type':'ineq', 'fun' : lambda p, n = i + j * ds.rulingNum: (p[n + 1] - p[i])},)
-    
-    maxiter = 50
-    res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = 'L-BFGS-B',  
+        res = minimize(optimization, x0 = p, args = (ds, img, ratio), method = method, jac = Func_Der, constraints= cons,
     callback = cb_optimization,options = {'gtol':1e-2, 'disp':True, 'eps':eps, 'maxiter':maxiter})
-    
-    #print(res)
+    print(res)
     for i in range(ds.rulingNum):
         print(i, " :  xL{%f}, xR{%f}" %(res.x[i], res.x[i + ds.rulingNum]))
-    print("===========================")
-
+    print("===========================")    
+    """
 
     DrawRuling.dispResult(RuledLines, ds.modelWidth, ds.modelHeight)
     return RuledLines

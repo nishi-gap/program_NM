@@ -162,10 +162,10 @@ def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, ratio:list):
     x = p
     for i in range(p.size):
         x[i] += eps
-        f1 = getSD2(x,ds,img,ratio,i) + Ffair(x, ds.modelWidth)
+        f1 = getSD2(x,ds,img,ratio,(i % ds.rulingNum)) + Ffair(x, ds.modelWidth)
         x[i] = p[i]
         x[i] -= eps
-        f2 = getSD2(x,ds,img,ratio,i) + Ffair(x, ds.modelWidth)
+        f2 = getSD2(x,ds,img,ratio,(i % ds.rulingNum)) + Ffair(x, ds.modelWidth)
         x[i] = p[i]
         f_der[i] = (f1 - f2)/(2 * eps)
             

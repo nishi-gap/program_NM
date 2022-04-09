@@ -3,12 +3,13 @@ from scipy.optimize import minimize, LinearConstraint
 from numpy import linalg as LA
 from src.pylib import DevSrf
 from src.pylib import DrawRuling
+import sys
 
 eps = 1e-2 #仮置き
 xstep = 0.1
 ystep = 0.1
 ff = 1e+3
-
+fp = 100
 IS_DEBUG_MODE = 0
 
 def Smoothing(img:np.ndarray,x:float,y:float, X:int,Y:int, ratio:list): 
@@ -129,7 +130,7 @@ def getSD2(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, ratio:list, n:int):
                 xr = min(max(0,y * (p[i] - p[i + ds.rulingNum])/ds.modelHeight + p[i],0),ds.modelWidth)
                 if x > xr: x, xr = xr, x
                 while x < xr:
-                    im = (Smoothing(img,x,y,ds.MaplWidth,ds.MapHeight,ratio))
+                    im = (Smoothing(img,x,y,ds.MapWidth,ds.MapHeight,ratio))
                     if(len(slicedImage) == 0):
                         slicedImage = np.hstack([slicedImage,im])
                     else:
@@ -143,17 +144,41 @@ def getSD2(p: np.ndarray, ds:DevSrf.DevSrf, img:np.ndarray, ratio:list, n:int):
         for v in slicedImage:
             f1 += LA.norm(v - Vave)
         f += f1
-
+        i += 1
     return f
 
-def Ffair(p:np.ndarray, W:int):
-    f = 0.0
-    n = int(len(p)/2)
-    for i in range(n - 1):
-        if p[i] > p[i + 1]: f += (p[i] - p[i + 1])
-        if p[i + n] > p[i + n + 1]: f += (p[i + n] - p[i + n + 1])
+    x:float
+    y:float
+    def __init__(self, _x:float, _y:float):
+        self.x = _x
+        self.y = _y
 
-    return ff * f
+#https://hcpc-hokudai.github.io/archive/geometry_004.pdf
+def ccw(a:np.ndarray, b:np.ndarray, c:np.ndarray):
+    if np.cross(b - a, c - a) > sys.float_info.epsilon:return 1
+    if np.cross(b - a, c - a) < -sys.float_info.epsilon:return -1
+    if np.dot(b - a,c - a) < -sys.float_info.epsilon:return 2
+    if LA.norm(b - a) + sys.float_info.epsilon < LA.norm(c - a):return -2
+    return 0
+
+#今後の実装予定
+# 線分の交差判定を実装  
+#setPosにいれることで適切な座標へと変換
+#座標をccwに入れて交差判定　→オリセンの交差とオリセンが展開図の範囲を超えた場合にペナルティ
+def setPos(x:float, y:float, x2:float, y2:float):
+    1
+
+  
+def Ffair(p:np.ndarray, W:int, n:int):
+    f = 0.0  
+    l = int(len(p)/2)
+    ind = n % l
+    for i in range(l):
+        if i != ind:
+            1
+           
+
+
 
 def Func_Der(p:np.ndarray, ds: DevSrf.DevSrf,img:np.array, ratio:list):
     if IS_DEBUG_MODE == 1:
@@ -185,7 +210,7 @@ def steepDescent(p:np.ndarray, ds:DevSrf.DevSrf,img:np.ndarray,ratio:list,step:f
         if LA.norm(der) < tol:
             return
         #各パラメータが範囲を超えた場合に調整
-        RuledLines = np.hstack([RuledLines,p])
+        RuledLines = np.vstack([RuledLines,p])
         itr += 1
 
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
@@ -196,7 +221,7 @@ def setRuling(ds:DevSrf.DevSrf, img: np.array):
     step = ds.modelWidth/(ds.rulingNum + 1)
     x_w = np.linspace(step, ds.modelWidth - step, ds.rulingNum)
     p = np.concatenate([x_w, x_w],0)
-    gstep = 1e-3
+    gstep = 1e-2
     maxItr = 100
     tol = 0.1
     steepDescent(p,ds,img,ratio,gstep,maxItr,tol)

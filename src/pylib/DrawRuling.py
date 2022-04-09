@@ -1,13 +1,12 @@
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 from matplotlib.animation import FuncAnimation
 import numpy as np
-from PIL import Image
 
 fig, ax = plt.subplots()
 xdata, ydata = [], []
 ln, = plt.plot([], [])
 ruledLines = np.empty(0,dtype = float)
-X = Y = 0
 
 def init():
     ax.set_xlim(-5, 25)
@@ -16,30 +15,18 @@ def init():
 
 def update(frame):
     p = ruledLines[frame]
-    n = int(len(p)/2)
+    n = int(len(p)/4)
     ax.cla()
     plt.text(0,0,"iteration:%d"%frame)
-    for i in range(n):  
-        px = [p[i], p[i + n]]
-        py = [0, Y]     
-        for j in range(2):
-            if px[j] < 0:
-                px[j] = 0
-                py[j] = p[i] * Y/(p[i + n] - p[i])
-            elif px[j] > X:
-                px[j] = X
-                py[j] = Y * (X - p[i])/(p[i + n] - p[i])
-        x = [px[0],px[1]]
-        y = [py[0],py[1]]
+    for i in range(n):
+        x = [p[i],p[i + n]]
+        y = [p[i + 2 * n], p[i + 3 * n]]
         ax.plot(x,y)
 
-def dispResult(_ruledLines, _X, _Y):
-    global ruledLines, X, Y
-    X = _X
-    Y = _Y
+def dispResult(_ruledLines):
+    global ruledLines
     ruledLines = _ruledLines
     iter = ruledLines.shape[0]
+    print("iter ",iter)
     ani = FuncAnimation(fig,update,frames=iter)
-    ani.save('img/result.gif', writer='pillow') 
     plt.show()
-    
